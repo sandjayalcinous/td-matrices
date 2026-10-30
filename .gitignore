@@ -1,0 +1,9 @@
+*.o
+test_ex1
+test_ex2
+test_ex3
+demo_matrices
+R*.txt
+test_ex2_sortie.txt
+.vscode/
+__MACOSX/
