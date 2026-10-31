@@ -1,4 +1,4 @@
-/*
+ /*
  * matrice_calcul.c -- Opérations arithmétiques sur les matrices.
  *
  * FICHIER À COMPLÉTER (exercice 3, étapes 3.a à 3.g).
@@ -40,21 +40,25 @@ MatErreur mat_additionner(const Matrice *a, const Matrice *b,
     /* (3.a) À COMPLÉTER : si a et b n'ont pas le même nombre de lignes
      *       OU pas le même nombre de colonnes,
      *       renvoyer MAT_ERR_DIMENSIONS.                              */
+    if (a->nb_lignes != b->nb_lignes || a->nb_colonnes != b->nb_colonnes)
+        return MAT_ERR_DIMENSIONS;
 
+    /* (3.b) À COMPLÉTER : allouer r avec les dimensions de a ;*/
+      Matrice r = MATRICE_VIDE;
+      
+      err = mat_allouer(&r, a->nb_lignes, a->nb_colonnes);
+      if (err != MAT_OK) 
+	  return err;
 
-    /* (3.b) À COMPLÉTER : allouer r avec les dimensions de a ;
-     *         err = mat_allouer(&r, ..., ...);
-     *         if (err != MAT_OK) return err;                          */
-    Matrice r = MATRICE_VIDE;
 
 
     /* FOURNI : parcours de tous les coefficients de r. */
     for (int i = 0; i < r.nb_lignes; i++) {
         for (int j = 0; j < r.nb_colonnes; j++) {
             /* (3.c) À COMPLÉTER : calculer la somme des coefficients
-             *       (i, j) de a et de b EN long long :
-             *         long long s = (long long)a->coef[i][j] + ... ;  */
-            long long s = 0;   /* ligne provisoire : à remplacer en (3.c) */
+             *       (i, j) de a et de b EN long long :*/
+
+	 long long s = (long long)a->coef[i][j] + b->coef[i][j];
 
             if (!tient_dans_int(s)) {                    /* FOURNI */
                 mat_detruire(&r);
@@ -64,10 +68,10 @@ MatErreur mat_additionner(const Matrice *a, const Matrice *b,
         }
     }
 
-    /* (3.d) À COMPLÉTER : transférer le résultat :
-     *         *res = r;  return MAT_OK;                               */
-    mat_detruire(&r);            /* ligne provisoire : à supprimer en (3.d) */
-    return MAT_ERR_LECTURE;      /* ligne provisoire : à remplacer en (3.d) */
+    /* (3.d) À COMPLÉTER : transférer le résultat :*/
+              *res = r;
+		return MAT_OK;
+
 }
 
 MatErreur mat_multiplier(const Matrice *a, const Matrice *b,
