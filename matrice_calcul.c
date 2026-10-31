@@ -83,12 +83,18 @@ MatErreur mat_multiplier(const Matrice *a, const Matrice *b,
 
     /* (3.e) À COMPLÉTER : le produit a x b n'existe que si le nombre de
      *       COLONNES de a est égal au nombre de LIGNES de b.
-     *       Sinon, renvoyer MAT_ERR_DIMENSIONS.                       */
+     *       Sinon, renvoyer MAT_ERR_DIMENSIONS.*/
+	if (a->nb_colonnes != b -> nb_lignes)
+		return MAT_ERR_DIMENSIONS;
 
 
     /* (3.f) À COMPLÉTER : allouer r de dimensions
      *       (lignes de a) x (colonnes de b).                          */
     Matrice r = MATRICE_VIDE;
+	
+    err = mat_allouer(&r, a->nb_lignes, b->nb_colonnes);
+    if (err != MAT_OK)
+        return err;
 
 
     for (int i = 0; i < r.nb_lignes; i++) {              /* FOURNI */
@@ -96,17 +102,18 @@ MatErreur mat_multiplier(const Matrice *a, const Matrice *b,
             long long s = 0;
 
             /* (3.g) À COMPLÉTER : boucle sur k, de 0 à a->nb_colonnes - 1,
-             *       qui ajoute à s le produit a(i,k) x b(k,j) :
-             *
-             *   for (int k = 0; k < a->nb_colonnes; k++) {
-             *       long long p = (long long)a->coef[i][k] * b->coef[k][j];
-             *       if ((p > 0 && s > LLONG_MAX - p)
-             *           || (p < 0 && s < LLONG_MIN - p)) {
-             *           mat_detruire(&r);
-             *           return MAT_ERR_DEPASSEMENT;
-             *       }
-             *       s += p;
-             *   }                                                     */
+                    qui ajoute à s le produit a(i,k) x b(k,j) :*/
+
+                for (int k = 0; k < a->nb_colonnes; k++) {
+                    long long p = (long long)a->coef[i][k] * b->coef[k][j];
+                    if ((p > 0 && s > LLONG_MAX - p)
+                        || (p < 0 && s < LLONG_MIN - p)) {
+                        mat_detruire(&r);
+                        return MAT_ERR_DEPASSEMENT;
+                    }
+                    s += p;
+                }
+
 
             if (!tient_dans_int(s)) {                    /* FOURNI */
                 mat_detruire(&r);
@@ -117,6 +124,6 @@ MatErreur mat_multiplier(const Matrice *a, const Matrice *b,
     }
 
     /* (3.h) À COMPLÉTER : *res = r;  return MAT_OK;                    */
-    mat_detruire(&r);            /* ligne provisoire : à supprimer en (3.h) */
-    return MAT_ERR_LECTURE;      /* ligne provisoire : à remplacer en (3.h) */
+	*res = r;
+	return MAT_OK;
 }
