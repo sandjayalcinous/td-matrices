@@ -1,4 +1,4 @@
-# ALCINOUS-ALAMELOU-td-matrices
+éé# ALCINOUS-ALAMELOU-td-matrices
 
 ## Table des matières
 - [1. En-tête](#1-en-tête)
@@ -45,7 +45,78 @@ Les objectifs du TD sont d'apprendre à :
 
 ## 3. Conception
 
+### Schémas des modules
 
+
+```mermaid
+flowchart TD
+    main[main.c] --> io[matrice_io]
+    main --> calcul[matrice_calcul]
+    main --> alloc[matrice_alloc]
+    main --> mat[matrice]
+    io --> alloc
+    io --> mat
+    calcul --> alloc
+    calcul --> mat
+```
+Rôle de chaque module :
+
+- `matrice` : type Matrice, codes d'erreur MatErreur et outils comme mat_message_erreur et mat_est_valide.
+- `matrice_alloc` : création et destruction d'une matrice. Il dépend du type défini dans matrice.h.
+- `matrice_io` : lecture, écriture et affichage. Il utilise matrice_alloc pour créer la matrice lue.
+- `matrice_calcul` : addition et produit. Il utilise matrice_alloc pour créer le résultat.
+- `main.c` : programme de démonstration qui assemble les modules.
+
+### Graphe des inclusions
+
+```mermaid
+flowchart TD
+    mio_c[matrice_io.c] --> mio_h[matrice_io.h]
+    mio_c --> mal_h[matrice_alloc.h]
+    mal_c[matrice_alloc.c] --> mal_h
+    mca_c[matrice_calcul.c] --> mca_h[matrice_calcul.h]
+    mca_c --> mal_h
+    mat_c[matrice.c] --> mat_h[matrice.h]
+    mio_h --> mat_h
+    mal_h --> mat_h
+    mca_h --> mat_h
+    main[main.c] --> mat_h
+    main --> mio_h
+    main --> mal_h
+    main --> mca_h
+```
+Chaque .h est protégé par un garde `#ifndef NOM_H` / `#define NOM_H` / `#endif`. Sans lui, main.c, qui inclut matrice.h directement et aussi indirectement via matrice_io.h, matrice_alloc.h et matrice_calcul.h, verrait la définition de struct matrice plusieurs fois, ce qui provoquerait une erreur de compilation. Le garde fait en sorte que le contenu d'un en-tête ne soit traité qu'une seule fois.
+Le graphe suit la figure 2 du sujet, chaque fichier inclut que ce qu'il a besoin 
+
+### Règles de propriété de la mémoire
+
+- **Qui alloue ?** `mat_allouer` qui est un module de `matrice_alloc`. mat_lire et les fonctions de calcul passent par elle pour créer une matrice.
+- **Qui utilise ?** Les fonctions de `matrice_io` et `matrice_calcul` lisent les matrices reçues sans les modifier.
+- **Qui libère ?** Celui qui a reçu la matrice : `main` appelle `mat_detruire` sur a, b et r dans le bloc nettoyage. Une fonction qui échoue libère elle-même ce qu'elle a créé.
+- **Que vaut une matrice après un échec ?** Elle vaut `MATRICE_VIDE`
+
+Ci-dessous indique, règle par règle, où le code les respecte.
+
+- **R1** : une matrice est toujours initialisée avant d'être utilisée. Dans `main.c`, a, b et r commencent à MATRICE_VIDE. Dans `matrice_calcul.c`, la variable locale r aussi. Dans `matrice_alloc.c`, mat_allouer remet *res à vide dès le début. Comme ça, détruire une matrice qui n'a jamais été créée ne pose pas de problème.
+- **R2** : quand tout s'est bien passé, on fait *res = r; . Le résultat passe alors à l'appelant, c'est lui qui devient responsable de le libérer. C'est à la fin de mat_additionner et mat_multiplier dans `matrice_calcul.c` et de mat_lire dans `matrice_io.c`.
+- **R3** : quand il y a une erreur, on libère tout ce qui a été créé avant de quitter la fonction. mat_allouer dans `matrice_alloc.c` libère les lignes déjà allouées. mat_lire dans `matrice_io.c` appelle mat_detruire(&tmp). Les fonctions de calcul qui sont dans `matrice_calcul.c` appellent mat_detruire(&r) avant chaque return d'erreur.
+- **R4** : les matrices données en entrée sont des const Matrice *, donc on ne les modifie jamais. C'est le cas dans `matrice_io.c` (écriture, affichage) et dans `matrice_calcul.c`.
+- **R5** : verifier_parametres dans `matrice_calcul.c` refuse que le résultat soit la même matrice qu'une entrée. Elle remet aussi *res à vide.
+- **R6** : mat_detruire dans `matrice_alloc.c` termine par *m = MATRICE_VIDE;. Si on la détruit une deuxième fois, il ne se passe rien. C'est bien pour le bloc nettoyage de `main.c`, qui détruit r, b et a sans avoir besoin de savoir lesquelles ont été créées.
+- **R7** : celui qui ouvre le fichier le ferme. charger et sauvegarder dans `main.c` font fopen et fclose. Il y a aussi mat_lire et mat_ecrire dans `matrice_io.c` ne ferment jamais le fichier.
+
+### Justification des choix
+
+**Ce qui est static, et pourquoi.** verifier_parametres et tient_dans_int dans `matrice_calcul.c` sont static, comme lire_entier, mat_calloc, charger et sauvegarder. 
+Ce sont des fonctions qui ne servent que dans leur propre fichier. Les mettre en static car elle permet de les cacher aux autres modules, on ne les met pas dans les .h.
+
+**Gestion de l'échec partiel.** Pour créer une matrice on doit faire plusieurs `malloc` : un pour le tableau de pointeurs et un par ligne. Si il y en a un qui échoue au milieu, il y a déjà des lignes allouées. 
+mat_allouer les libère toutes, puis libère le tableau, et renvoie `MAT_ERR_ALLOCATION`. Rien n'est perdu et *res reste vide. 
+mat_lire fonctionne de la même façon : elle remplit une matrice temporaire tmp, et la donne à *res que si toute la lecture a réussi. Sinon, elle appelle mat_detruire(&tmp).
+
+**Détection du dépassement d'entier.** Une addition ou un produit de deux int peut dépasser la taille d'un int, et le résultat serait alors faux sans aucun message. 
+Pour éviter ça, on fait les calculs dans un long long, qui est plus grand. Ensuite, `tient_dans_int` vérifie que le résultat rentre dans un int. Si ce n'est pas le cas, on libère la matrice et on renvoie MAT_ERR_DEPASSEMENT. 
+Dans le produit, on additionne plusieurs termes les uns après les autres. On vérifie donc aussi, avant chaque addition, que la somme ne dépasse pas les limites du `long long` lui-même.
 
 ## 4. Réalisation
 
@@ -252,7 +323,7 @@ Bilan : 14 / 14 verifications reussies.
 if (a->nb_lignes != b->nb_lignes || a->nb_colonnes != b->nb_colonnes)
         return MAT_ERR_DIMENSIONS;
 ```
-L'addition n'est possible que si les deux matrices ont exactement les
+L'addition est possible que si les deux matrices ont les
 mêmes dimensions.
 
 **Étape 3.b — Addition : Réserver le résultat**
@@ -263,7 +334,7 @@ if (err != MAT_OK)
         return err;
 ```
 On réutilise `mat_allouer` (exercice 1) pour créer le résultat avec les
-dimensions de `a`.
+dimensions de la matrice `a`.
 
 
 **Étape 3.c — Addition : Calculer chaque coefficient**
@@ -281,6 +352,7 @@ avant qu'il se fasse  en `int`.
 *res = r;
 return MAT_OK;
 ```
+transfère la propriété de la matrice calculée à l’appelant, puis on renvoie MAT_OK
 
 **Étape 3.e — Multiplication : Contrôler les dimensions (produit)**
 
@@ -288,6 +360,7 @@ return MAT_OK;
 if (a->nb_colonnes != b->nb_lignes)
         return MAT_ERR_DIMENSIONS;
 ```
+Le produit de  a et b est possible que si le nombre de colonnes de a est égal au nombre de lignes de b.
 
 **Étape 3.f — Multiplication : Réserver le résultat**
 
@@ -296,6 +369,7 @@ err = mat_allouer(&r, a->nb_lignes, b->nb_colonnes);
 if (err != MAT_OK)
         return err;
 ```
+Le résultat a a->nb_lignes lignes et b->nb_colonnes colonnes, c’est un mélange des dimensions des deux matrices d’entrée
 
 **Étape 3.g — Multiplication : La somme des produits**
 
@@ -311,6 +385,7 @@ for (int k = 0; k < a->nb_colonnes; k++) {
 }
 
 ```
+Ici un coefficient est la somme des produits d’une ligne de a par une colonne de b. Avant chaque addition à s, on vérifie qu’elle ne dépasse pas les bornes d’un long long, et on détruit r avant de renvoyer l’erreur pour éviter une fuite.
 
 **Étape 3.h — Multiplication : Transférer le résultat**
 
@@ -320,6 +395,44 @@ return MAT_OK;
 ```
 Identique à l'étape 3.d pour l'addition.
 
+#### Résultats tests
+
+```text
+gcc -std=c11 -Wall -Wextra -Wpedantic -g -DMAT_TEST_ALLOC \
+    test_ex3.c matrice.c matrice_alloc.c matrice_calcul.c -o test_ex3
+./test_ex3
+=== Exercice 3 : addition ===
+[OK]    (3.a) (2 x 3) + (3 x 2) : MAT_ERR_DIMENSIONS
+[OK]    (3.d) (2 x 3) + (2 x 3) : MAT_OK
+[OK]    (3.c) a + b est correct
+[OKé]    a et b n'ont pas ete modifiees
+[OK]    (3.b) le resultat possede sa propre memoire
+[OK]    (3.c) INT_MAX + 1 : MAT_ERR_DEPASSEMENT
+=== Exercice 3 : multiplication ===
+[OK]    (3.e) (2 x 3) x (2 x 3) : MAT_ERR_DIMENSIONS
+[OK]    (3.h) (2 x 3) x (3 x 2) : MAT_OK
+[OK]    (3.g) a x c = (58 64 / 139 154)
+[OK]    (3.f) (3 x 2) x (2 x 3) donne une matrice 3 x 3
+[OK]    a et c n'ont pas ete modifiees
+[OK]    (3.g) 2 x 10^10 depasse INT_MAX : MAT_ERR_DEPASSEMENT
+=== Exercice 3 : cas particuliers ===
+[OK]    resultat = entree refuse, a reste intacte
+[OK]    (3.f) echec d'allocation : MAT_ERR_ALLOCATION, r vide
+
+Bilan : 14 / 14 verifications reussies.
+Pensez a verifier l'absence de fuite : valgrind --leak-check=full ./test_ex3
+```
+**Questions de réflexion**
+
+**Q5.1.** Non, const Matrice *a n'empêche pas d'écrire `a->coef[0][0] = 7;`. Le const protège la structure elle-même. Mais `coef` est un pointeur, et les coefficients sont dans des tableaux alloués avec `malloc`, ailleurs en mémoire. Le `const` ne va pas jusque-là. Pour que le compilateur refuse l'affectation, il faudrait déclarer le champ "const int *const *coef;" dans la structure et donc modifier le fichier .h, ce qui oblige à modifier `matrice.h`.
+
+**Q5.2.** verifier_parametres commence par `*res = MATRICE_VIDE;`. Si res était a, on viderait a avant de la lire : ses données seraient perdues et ses blocs mémoire jamais libérés fuite. Le calcul crée de toute façon une nouvelle matrice, donc le résultat doit aller dans une matrice distincte.
+
+**Q5.3.** `mat_multiplier` a trois boucles imbriquées : i (de 0 à n), j (de 0 à q) et k (de 0 à p). Pour une matrice n × p par une matrice p × q, elle fait donc n × p × q multiplications. Pour deux matrices 1000 × 1000, cela fait 1000 × 1000 × 1000 = 10 puissance 9 multiplications donc 1 milliard
+
+**Q5.4.** Parce que `int s = a + b;` peut déjà déborder, et qu'un dépassement sur un int signé est un comportement indéfini en C. Le compilateur a le droit de supposer qu'il n'arrive jamais, donc il peut supprimer le test s < a. Nous avons choisi de faire le calcul dans un `long long`, qui est plus grand, puis de vérifier avec `tient_dans_int` que le résultat rentre dans un `int`.
+
+
 ### 4.4 Exercice 4 — Démonstration complète
 
 **Étape 4.a — Afficher A et B**
@@ -328,7 +441,7 @@ Identique à l'étape 3.d pour l'addition.
 mat_afficher("A", &a);
 mat_afficher("B", &b);
 ```
-Affichage de mise au point des deux matrices chargées, avant le calcul.
+Affichage de mise au point des deux matrices chargées, avant le calcul
 
 **Étape 4.b — Calculer le résultat**
 
@@ -342,19 +455,50 @@ if (err != MAT_OK) {
         goto nettoyage;
 }
 ```
-
+L’opérateur choisit l’addition ou la multiplication selon l’argument. En cas d’erreur, le message avec stderr affiche la cause et les dimensions de A et B, ensuite goto nettoyage mène à la sortie
 
 **Étape 4.c — Afficher le résultat**
 
 ```c
 mat_afficher(addition ? "R = A + B" : "R = A x B", &r);
 ```
+Affichage du résultat, avec un nom qui dépend de l’opération
 
 **Étape 4.d — Signaler le succès**
 
 ```c
 printf("Résultat enregistré dans \"%s\".\n", argv[4]);
 statut = EXIT_SUCCESS;
+```
+Cette ligne sera atteinte que si tout a réussi, c’est le seul moment où statut passe à EXIT_SUCCESS, tous les échecs passe par goto nettoyage avant
+
+**Questions de réflexion**
+
+**Q6.1.** `mat_lire` fait partie d'une bibliothèque réutilisable. Si elle affichait elle-même l'erreur dans le terminal, un programme graphique ne pourrait pas choisir comment l'afficher. Elle renvoie donc un code `MatErreur`, et c'est `main.c` qui décide du message.
+
+**Q6.2.** En écriture, les données sont dans un tampon et ne sont vraiment écrites qu'au `fclose` : une erreur cet à dire quand le dique est plein peut n'apparaître qu'à ce moment. En lecture, tout a déjà été lu et vérifié avant `fclose`, donc un échec ne fait rien perdre.
+
+**Q6.3.** Trois matrices : `a`, `b` et `r`, car le calcul a réussi. L'échec de l'enregistrement fait sauter à `nettoyage`, qui appelle `mat_detruire` sur chacune. Valgrind le confirme sur le scenario 8 :
+
+```text
+
+      10      11      12
+R = A + B (4 x 3) :
+      26      50      87
+      19      38      17
+      52      96      19
+      10      23       7
+==259029== 
+==259029== HEAP SUMMARY:
+==259029==     in use at exit: 0 bytes in 0 blocks
+==259029==   total heap usage: 23 allocs, 23 frees, 13,966 bytes allocated
+==259029== 
+==259029== All heap blocks were freed -- no leaks are possible
+==259029== 
+==259029== For lists of detected and suppressed errors, rerun with: -s
+==259029== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+
+
 ```
 
 ## 5. Vérifications mémoire
@@ -394,6 +538,107 @@ statut = EXIT_SUCCESS;
 
 ## 6. Démonstration finale
 
+Quatre scénarios : deux réussites (1 et 2) et deux erreurs (3 et 8).
+
+### Scénario 1 : addition valide
+
+```text
+$ ./demo_matrices add donnees/A.txt donnees/B.txt R.txt
+A (4 x 3) :
+      25      48      84
+      15      33      11
+      45      88      10
+       0      12      -5
+B (4 x 3) :
+       1       2       3
+       4       5       6
+       7       8       9
+      10      11      12
+R = A + B (4 x 3) :
+      26      50      87
+      19      38      17
+      52      96      19
+      10      23       7
+Résultat enregistré dans "R.txt".
+$ echo $?
+0
+```
+
+Attendu : `A`, `B` et `R` sont affichées, `R.txt` est créé, code de retour 0.
+
+### Scénario 2 : produit valide
+
+```text
+$ ./demo_matrices mul donnees/A.txt donnees/C.txt R.txt
+A (4 x 3) :
+      25      48      84
+      15      33      11
+      45      88      10
+       0      12      -5
+B (3 x 2) :
+       1       0
+       0       1
+       2      -1
+R = A x B (4 x 2) :
+     193     -36
+      37      22
+      65      78
+     -10      17
+Résultat enregistré dans "R.txt".
+$ echo $?
+0
+```
+
+Attendu : `A` (4 x 3) par `C` (3 x 2) donne une matrice 4 x 2, code de retour 0.
+
+### Scénario 3 (erreur) : dimensions incompatibles
+
+```text
+$ rm -f R.txt
+$ ./demo_matrices add donnees/A.txt donnees/C.txt R.txt
+A (4 x 3) :
+      25      48      84
+      15      33      11
+      45      88      10
+       0      12      -5
+B (3 x 2) :
+       1       0
+       0       1
+       2      -1
+Erreur : calcul impossible : dimensions incompatibles (A : 4 x 3, B : 3 x 2)
+$ echo $?
+1
+$ ls R.txt
+ls: impossible d'accéder à 'R.txt': Aucun fichier ou dossier de ce nom
+```
+
+Attendu : l'addition est refusée car 4 x 3 et 3 x 2 sont différentes. Le message donne la cause et les dimensions, aucun fichier n'est créé, code de retour 1.
+
+### Scénario 8 (erreur) : enregistrement impossible
+
+```text
+$ ./demo_matrices add donnees/A.txt donnees/B.txt dossier_inexistant/R.txt
+A (4 x 3) :
+      25      48      84
+      15      33      11
+      45      88      10
+       0      12      -5
+B (4 x 3) :
+       1       2       3
+       4       5       6
+       7       8       9
+      10      11      12
+R = A + B (4 x 3) :
+      26      50      87
+      19      38      17
+      52      96      19
+      10      23       7
+Erreur : impossible de créer "dossier_inexistant/R.txt" : No such file or directory
+$ echo $?
+1
+```
+
+Attendu : le calcul réussit mais le fichier ne peut pas être créé. Le message donne le nom du fichier et la cause du système, les trois matrices sont libérées comme répondu à la question 6.3, code de retour 1.
 
 ## 7. Bilan et difficultés
 
