@@ -23,7 +23,7 @@
 - Rohan ALAMELOU — `@RohannnA`
 - Sandjay ALCINOUS — `@sandjayalcinous`
 
-**Groupe de TD :** 3
+**Groupe de TD :** 2
 
 ## 2. Introduction
 
