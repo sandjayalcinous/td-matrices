@@ -1,4 +1,4 @@
-éé# ALCINOUS-ALAMELOU-td-matrices
+# ALCINOUS-ALAMELOU-td-matrices
 
 ## Table des matières
 - [1. En-tête](#1-en-tête)
