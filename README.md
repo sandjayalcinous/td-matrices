@@ -116,6 +116,16 @@ if (m->coef != NULL) {
 ```
 L'ordre est l'inverse de l'allocation : si on libérait `coef` en premier, on ne pourrait plus lire l'adresse des lignes.
 
+#### Questions de réflexion
+
+**Q3.1** — `mat_detruire` doit remettre la matrice de l'appelant à `MATRICE_VIDE` (règle R6), et donc elle a besoin de son adresse. Si on la passait par valeur, la fonction travaillerait sur une copie : la mémoire serait bien libérée, mais seule la copie serait remise à vide. La matrice de l'appelant garderait donc son ancien pointeur vers une zone déjà libérée, et un deuxième `mat_detruire` ferait un double `free`.
+
+**Q3.2** — Pour une matrice n × p, on fait 1 + n appels à `calloc` : un pour le tableau des pointeurs et un pour chaque ligne. On fait donc aussi 1 + n `free` pour la détruire. On le voit avec valgrind sur `test_ex1` : *11 allocs, 11 frees*. Si la k-ième allocation échoue, il faut libérer tout ce qui a été obtenu avant, donc k − 1 blocs (et 0 si c'est la toute première qui échoue).
+
+**Q3.3** — À la fin de `mat_detruire`, la matrice est remise à `MATRICE_VIDE` et donc `coef` vaut `NULL`. Au deuxième appel, le `if (m->coef != NULL)` est faux et on ne libère rien, ce que vérifie le test « un second mat_detruire est sans danger ». Par contre, avec `Matrice b = a;`, on copie seulement le pointeur `coef` et pas les lignes, donc `a` et `b` partagent la même mémoire. Après `mat_detruire(&a)`, `b` pointe encore vers cette mémoire libérée et `mat_detruire(&b)` la libère une deuxième fois : c'est un double `free`.
+
+**Q3.4** — Ici on souhaite que `*res` soit vide dès le début, pour que tous les cas d'erreur qui suivent laissent une matrice vide à l'appelant (règle R3). Ça compte aussi pour l'erreur sur les dimensions de l'étape 1.c. Sinon, si l'appelant n'avait pas initialisé sa variable, elle garderait un pointeur au hasard, et un `mat_detruire` ferait un `free` sur n'importe quelle adresse.
+
 #### Résultat du test
 
 ```text
@@ -212,6 +222,16 @@ Et en cas d'erreur, cette matrice locale `tmp` est détruite avant de renvoyer l
 return MAT_OK;
 ```
 À partir de là, l'appelant possède la matrice locale que l'on a créée et devra la détruire conformément à la règle R2.
+
+#### Questions de réflexion
+
+**Q4.1** — Si on lisait directement dans `*res` et qu'une erreur arrivait au milieu du fichier, l'appelant recevrait une matrice à moitié remplie. En passant par la matrice locale `tmp`, on peut la détruire en cas d'erreur et `*res` reste donc vide (règle R3). On donne la matrice à l'appelant seulement une fois toute la lecture réussie. Valgrind sur `test_ex2` montre qu'il n'y a aucune fuite, même avec les fichiers incorrects (*51 allocs, 51 frees*).
+
+**Q4.2** — Non, la lecture ne vérifie pas que chaque ligne de la matrice est sur sa propre ligne, car `fscanf` saute tous les espaces et les sauts de ligne. Ce n'est pas gênant car les dimensions au début du fichier disent combien de nombres il faut lire, et donc la mise en page ne change pas le résultat. Être tolérant en lecture permet d'accepter un fichier modifié à la main avec des espaces en trop, et être strict en écriture permet d'avoir des fichiers toujours écrits de la même façon.
+
+**Q4.3** — Comme `mat_lire` ne ferme pas le fichier et s'arrête juste après le dernier coefficient, on peut écrire deux matrices à la suite dans le même fichier. Ensuite, on ouvre le fichier une seule fois et on appelle `mat_lire` deux fois : le premier appel lit la première matrice, et le deuxième reprend là où le premier s'est arrêté pour lire la deuxième.
+
+**Q4.4** — `fprintf` n'écrit pas tout de suite dans le fichier, car les données passent d'abord par un tampon en mémoire. `fflush` force l'écriture, ce qui permet de détecter une erreur (par exemple un disque plein) directement dans `mat_ecrire`. Mais ça ne dispense pas l'appelant de tester `fclose`, car la fermeture peut aussi échouer. C'est pour ça que la fonction `sauvegarder` de `main.c` teste `fclose(f) == EOF`.
 
 #### Résultat du test
 
@@ -359,6 +379,8 @@ statut = EXIT_SUCCESS;
 
 ## 5. Vérifications mémoire
 
+Chaque programme a été lancé avec valgrind --leak-check=full.
+
 ### test_ex1
 ```text
 ==10327== HEAP SUMMARY:
@@ -392,11 +414,56 @@ statut = EXIT_SUCCESS;
 ==29627== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
 ```
 
+### demo_matrices — cas réussi (scénario 1 : addition de A et B)
+```text
+==30963== HEAP SUMMARY:
+==30963==     in use at exit: 0 bytes in 0 blocks
+==30963==   total heap usage: 22 allocs, 22 frees, 14,968 bytes allocated
+==30963==
+==30963== All heap blocks were freed -- no leaks are possible
+==30963== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+```
+
+### demo_matrices — scénario d'erreur (scénario 8 : dossier de sortie inexistant)
+```text
+$ valgrind --leak-check=full ./demo_matrices add donnees/A.txt donnees/B.txt dossier_inexistant/R.txt
+...
+Erreur : impossible de créer "dossier_inexistant/R.txt" : No such file or directory
+==35694== HEAP SUMMARY:
+==35694==     in use at exit: 0 bytes in 0 blocks
+==35694==   total heap usage: 23 allocs, 23 frees, 10,894 bytes allocated
+==35694==
+==35694== All heap blocks were freed -- no leaks are possible
+==35694== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+```
+
 ## 6. Démonstration finale
 
 
 ## 7. Bilan et difficultés
 
+Grâce à ce TD, nous avons compris comment représenter une matrice de taille variable avec un tableau de pointeurs, où chaque ligne est allouée à part. Nous avons surtout appris à gérer la mémoire sans fuite, en sachant qui alloue, qui possède le résultat et qui libère. Nous avons aussi compris l'intérêt de découper le code en modules, et de vérifier chaque opération (allocation, lecture, écriture) en renvoyant un code d'erreur.
+
+**Difficultés rencontrées et comment on les a résolues :**
+
+- **Erreur de boucle dans `matrice_io.c` :** dans les boucles de 2.a et 2.b, nous  avions écrit `i++` au lieu de `j++` dans la boucle intérieure, et le programme plantait (Segmentation fault). Valgrind nous a donné la ligne exacte (matrice_io.c:53) et nous a montré que le programme lisait juste après la fin du tableau des lignes, donc `coef[4]` qui n'existe pas.
+
+- **Dimension nulle refusée avec le mauvais code :** en 2.c, nous avions écrit < 0 au lieu de < 1. La dimension 0 passait donc le contrôle, et c'est `mat_allouer` qui la refusait avec `MAT_ERR_ARGUMENT` au lieu de `MAT_ERR_FORMAT`. Le test "dimension nulle" échouait (13/14) et on a corrigé la condition.
+
+- **Mise en place de l'environnement :** Un d'entre nous a installer WSL (Ubuntu sous Windows) pour avoir gcc et valgrind. Et a dû s'adapter à cet environnement nouveau.
+
+
+**Répartition du travail :**
+
+- **Sandjay ALCINOUS :** exercices 1 et 2 (`matrice.c`, `matrice_alloc.c`, `matrice_io.c`), vérifications mémoire avec valgrind, et rédaction des parties 1, 2, 4.1, 4.2, 5 et 7 du compte rendu.
+
+- **Rohan ALAMELOU :** exercices 3 et 4 (`matrice_calcul.c`, `main.c`), et rédaction des parties 3 (conception), 4.3, 4.4, 6 (démonstration finale) et une partie du 7 du compte rendu.
+
+**Aides extérieures :** Nous avons utilisé un outil d'IA pour :
+- mettre en place l'environnement (WSL, Git, GitHub, tag de rendu)
+- nous aider à comprendre les messages du compilateur et de valgrind pendant le débogage
+- proposer un modèle de markdown et le Makefile
+- correction de formulation dans parties du compte rendu.
 
 ## Annexes (facultatif)
 
