@@ -16,7 +16,7 @@ const char *mat_message_erreur(MatErreur code)
     case MAT_ERR_FORMAT:      return "fichier mal formé";
     case MAT_ERR_ECRITURE:    return "erreur d'écriture du fichier";
     /* Messages d'erreurs des deux derniers codes. */
-    case MAT_ERR_DIMENSIONS:  return "dimensions incompatibles";
+    case MAT_ERR_DIMENSIONS:  return "dimensions incompatibles pour l'opération";
     case MAT_ERR_DEPASSEMENT: return "erreur dépassement de la capacité";
 
     default:                  break;
