@@ -425,7 +425,7 @@ gcc -std=c11 -Wall -Wextra -Wpedantic -g -DMAT_TEST_ALLOC \
 [OK]    (3.a) (2 x 3) + (3 x 2) : MAT_ERR_DIMENSIONS
 [OK]    (3.d) (2 x 3) + (2 x 3) : MAT_OK
 [OK]    (3.c) a + b est correct
-[OKé]    a et b n'ont pas ete modifiees
+[OK]    a et b n'ont pas ete modifiees
 [OK]    (3.b) le resultat possede sa propre memoire
 [OK]    (3.c) INT_MAX + 1 : MAT_ERR_DEPASSEMENT
 === Exercice 3 : multiplication ===
@@ -446,7 +446,7 @@ Pensez a verifier l'absence de fuite : valgrind --leak-check=full ./test_ex3
 
 **Q5.1.** Non, const Matrice *a n'empêche pas d'écrire `a->coef[0][0] = 7;`. Le const protège la structure elle-même. Mais `coef` est un pointeur, et les coefficients sont dans des tableaux alloués avec `malloc`, ailleurs en mémoire. Le `const` ne va pas jusque-là. Pour que le compilateur refuse l'affectation, il faudrait déclarer le champ "const int *const *coef;" dans la structure et donc modifier le fichier .h, ce qui oblige à modifier `matrice.h`.
 
-**Q5.2.** verifier_parametres commence par `*res = MATRICE_VIDE;`. Si res était a, on viderait a avant de la lire : ses données seraient perdues et ses blocs mémoire jamais libérés fuite. Le calcul crée de toute façon une nouvelle matrice, donc le résultat doit aller dans une matrice distincte.
+**Q5.2.** verifier_parametres commence par `*res = MATRICE_VIDE;`. Si res était a, on viderait a avant de la lire : ses données seraient perdues et ses blocs mémoire jamais libérés (fuite mémoire). Le calcul crée de toute façon une nouvelle matrice, donc le résultat doit aller dans une matrice distincte.
 
 **Q5.3.** `mat_multiplier` a trois boucles imbriquées : i (de 0 à n), j (de 0 à q) et k (de 0 à p). Pour une matrice n × p par une matrice p × q, elle fait donc n × p × q multiplications. Pour deux matrices 1000 × 1000, cela fait 1000 × 1000 × 1000 = 10 puissance 9 multiplications donc 1 milliard
 
@@ -490,24 +490,18 @@ Affichage du résultat, avec un nom qui dépend de l’opération
 printf("Résultat enregistré dans \"%s\".\n", argv[4]);
 statut = EXIT_SUCCESS;
 ```
-Cette ligne sera atteinte que si tout a réussi, c’est le seul moment où statut passe à EXIT_SUCCESS, tous les échecs passe par goto nettoyage avant
+Cette ligne sera atteinte que si tout a réussi, c’est le seul moment où statut passe à EXIT_SUCCESS, tous les échecs passent par goto nettoyage avant
 
 **Questions de réflexion**
 
 **Q6.1.** `mat_lire` fait partie d'une bibliothèque réutilisable. Si elle affichait elle-même l'erreur dans le terminal, un programme graphique ne pourrait pas choisir comment l'afficher. Elle renvoie donc un code `MatErreur`, et c'est `main.c` qui décide du message.
 
-**Q6.2.** En écriture, les données sont dans un tampon et ne sont vraiment écrites qu'au `fclose` : une erreur cet à dire quand le dique est plein peut n'apparaître qu'à ce moment. En lecture, tout a déjà été lu et vérifié avant `fclose`, donc un échec ne fait rien perdre.
+**Q6.2.** En écriture, les données sont dans un tampon et ne sont vraiment écrites qu'au `fclose` : une erreur c'est-à-dire quand le disque est plein peut n'apparaître qu'à ce moment. En lecture, tout a déjà été lu et vérifié avant `fclose`, donc un échec ne fait rien perdre.
 
 **Q6.3.** Trois matrices : `a`, `b` et `r`, car le calcul a réussi. L'échec de l'enregistrement fait sauter à `nettoyage`, qui appelle `mat_detruire` sur chacune. Valgrind le confirme sur le scenario 8 :
 
 ```text
-
-      10      11      12
-R = A + B (4 x 3) :
-      26      50      87
-      19      38      17
-      52      96      19
-      10      23       7
+Erreur : impossible de créer "dossier_inexistant/R.txt" : No such file or directory
 ==259029== 
 ==259029== HEAP SUMMARY:
 ==259029==     in use at exit: 0 bytes in 0 blocks
@@ -517,8 +511,6 @@ R = A + B (4 x 3) :
 ==259029== 
 ==259029== For lists of detected and suppressed errors, rerun with: -s
 ==259029== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
-
-
 ```
 
 ## 5. Vérifications mémoire
@@ -650,7 +642,7 @@ B (3 x 2) :
        1       0
        0       1
        2      -1
-Erreur : calcul impossible : dimensions incompatibles (A : 4 x 3, B : 3 x 2)
+Erreur : calcul impossible : dimensions incompatibles pour l'opération (A : 4 x 3, B : 3 x 2)
 $ echo $?
 1
 $ ls R.txt
