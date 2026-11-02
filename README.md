@@ -118,6 +118,38 @@ mat_lire fonctionne de la même façon : elle remplit une matrice temporaire tmp
 Pour éviter ça, on fait les calculs dans un long long, qui est plus grand. Ensuite, `tient_dans_int` vérifie que le résultat rentre dans un int. Si ce n'est pas le cas, on libère la matrice et on renvoie MAT_ERR_DEPASSEMENT. 
 Dans le produit, on additionne plusieurs termes les uns après les autres. On vérifie donc aussi, avant chaque addition, que la somme ne dépasse pas les limites du `long long` lui-même.
 
+### Compilation
+
+Le projet se compile avec le `Makefile` ci-dessous.
+
+make construit les quatre programmes demo_matrices, test_ex1, test_ex2, test_ex3 et make clean supprime les exécutables.
+
+```make
+CC = gcc
+CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -g
+LIB = matrice.c matrice_alloc.c
+HDR = matrice.h matrice_alloc.h matrice_io.h matrice_calcul.h
+
+all: demo_matrices test_ex1 test_ex2 test_ex3
+
+demo_matrices: main.c $(LIB) matrice_io.c matrice_calcul.c $(HDR)
+	$(CC) $(CFLAGS) main.c $(LIB) matrice_io.c matrice_calcul.c -o $@
+
+test_ex1: test_ex1.c $(LIB) $(HDR)
+	$(CC) $(CFLAGS) -DMAT_TEST_ALLOC test_ex1.c $(LIB) -o $@
+
+test_ex2: test_ex2.c $(LIB) matrice_io.c $(HDR)
+	$(CC) $(CFLAGS) -DMAT_TEST_ALLOC test_ex2.c $(LIB) matrice_io.c -o $@
+
+test_ex3: test_ex3.c $(LIB) matrice_calcul.c $(HDR)
+	$(CC) $(CFLAGS) -DMAT_TEST_ALLOC test_ex3.c $(LIB) matrice_calcul.c -o $@
+
+clean:
+	rm -f demo_matrices test_ex1 test_ex2 test_ex3
+
+.PHONY: all clean
+```
+
 ## 4. Réalisation
 
 ### 4.1 Exercice 1 — Allocation et destruction
@@ -692,15 +724,15 @@ Grâce à ce TD, nous avons compris comment représenter une matrice de taille v
 
 **Répartition du travail :**
 
-- **Sandjay ALCINOUS :** exercices 1 et 2 (`matrice.c`, `matrice_alloc.c`, `matrice_io.c`), vérifications mémoire avec valgrind, et rédaction des parties 1, 2, 4.1, 4.2, 5 et 7 du compte rendu.
+- **Sandjay ALCINOUS :** exercices 1 et 2 et une partie du Makefile (`matrice.c`, `matrice_alloc.c`, `matrice_io.c`), vérifications mémoire avec valgrind, et rédaction des parties 1, 2, 4.1, 4.2, 5 et 7 du compte rendu.
 
-- **Rohan ALAMELOU :** exercices 3 et 4 (`matrice_calcul.c`, `main.c`), et rédaction des parties 3 (conception), 4.3, 4.4, 6 (démonstration finale) et une partie du 7 du compte rendu.
+- **Rohan ALAMELOU :** exercices 3, 4 et Makefile (`matrice_calcul.c`, `main.c`), et rédaction de la partie 3 (conception), 4.3, 4.4, 6 (démonstration finale) et une partie du 7 du compte rendu.
 
 **Aides extérieures :** Nous avons utilisé un outil d'IA pour :
 - mettre en place l'environnement (WSL, Git, GitHub, tag de rendu)
 - nous aider à comprendre les messages du compilateur et de valgrind pendant le débogage
 - proposer un modèle de markdown et le Makefile
-- correction de formulation dans parties du compte rendu.
+- correction de formulation dans des parties du compte rendu.
 
 ## Annexes (facultatif)
 
