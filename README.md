@@ -25,6 +25,8 @@
 
 **Groupe de TD :** 2
 
+**Date de remise :** 2 novembre 2026
+
 ## 2. Introduction
 
 Dans ce TD, nous avons écrit une petite bibliothèque en C qui permet de travailler avec des matrices d'entiers. Elle permet de créer une matrice, de la lire depuis un fichier texte, de l'écrire dans un fichier, de l'afficher, et de faire une addition ou une multiplication entre deux matrices.
@@ -42,6 +44,12 @@ Les objectifs du TD sont d'apprendre à :
 - lire et écrire dans un fichier en vérifiant chaque opération
 - gérer les erreurs de la même façon dans tout le projet, avec un code d'erreur renvoyé par chaque fonction.
 
+**Ce qui fonctionne à la remise :**
+- les exercices 1 à 4 sont terminés
+- les trois tests fournis passent en entier : `test_ex1` 16/16, `test_ex2` 14/14 et `test_ex3` 14/14
+- le programme `demo_matrices` donne les bons résultats et les bons codes de retour sur les scénarios testés (voir partie 6)
+- tout compile sans avertissement avec `-std=c11 -Wall -Wextra -Wpedantic`, et le Makefile permet de tout compiler avec `make`
+- valgrind ne trouve aucune fuite ni erreur mémoire, que ce soit sur les tests ou sur les cas d'erreur (voir partie 5)
 
 ## 3. Conception
 
